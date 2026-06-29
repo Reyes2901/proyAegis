@@ -1,0 +1,108 @@
+name: times_up_flutter
+description: Times up help parent monitor the time their kids spend on screen.
+version: 2.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.11.0 <4.0.0"
+
+dependencies:
+  # UI Packages:
+  auto_size_text: ^3.0.0
+  fl_chart: ^0.69.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_svg: ^2.0.4
+  geocoding: ^3.0.0
+
+  # Authentication Packages:
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.4
+  google_sign_in: ^7.0.0
+  flutter_login_facebook: ^1.4.1
+
+  # App Check Packages:
+  firebase_app_check: ^0.4.5
+
+  # Data Management Packages:
+  provider: ^6.0.2
+  cloud_firestore: ^6.6.0
+  shared_preferences: ^2.3.0
+  installed_apps: ^2.1.1
+  battery_plus: ^4.0.1
+  device_info_plus: ^8.2.2
+  firebase_storage: ^13.4.3
+  bloc: ^8.0.3
+  flutter_bloc: ^8.0.1
+
+  # Location Packages:
+  geolocator: ^13.0.0
+  google_maps_flutter: ^2.10.0
+
+  # Notification Packages:
+  firebase_messaging: ^16.4.1
+  flutter_local_notifications: ^17.2.3
+  flutter_background_service: ^5.1.0
+
+  # Utility Packages:
+  intl: any
+  uuid: ^4.5.3
+  app_usage: ^2.0.0
+  google_fonts: ^4.0.3
+  image_picker: ^1.1.0
+
+  rename: ^2.1.1
+  package_info_plus: ^8.0.0
+
+  # UI Component Packages:
+  line_awesome_flutter: ^2.0.0
+  showcaseview: ^2.0.3
+  shimmer: ^2.0.0
+
+  # Testing Packages:
+  mockito: ^5.0.0
+
+  # Share Packages:
+  share_plus: ^9.0.0    # <-- CAMBIADO DE ^6.3.0 A ^9.0.0
+
+  # Code Formatting Packages:
+  pedantic: ^1.9.2
+
+  cupertino_icons: ^1.0.6
+  freezed_annotation: ^2.2.0
+  json_annotation: ^4.8.1
+
+  #logger
+  logger: ^1.4.0
+  internet_connection_checker: ^1.0.0+1
+
+dev_dependencies:
+  bloc_test: ^9.1.1
+  build_runner: ^2.3.3
+  flutter_test:
+    sdk: flutter
+  freezed: ^2.4.2
+  json_serializable: ^6.6.2
+  mocktail: ^1.0.0
+  very_good_analysis: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - images/facebook-logo.png
+    - images/google-logo.png
+    - images/splash_svg/
+    - images/png/
+    - assets/map_theme/
+
+dependency_overrides:
+  web: ^1.0.0
+  mime: ^2.0.0
+  http: ^1.0.0
+  test_api: 0.7.10
+  win32: ^5.10.0
+  flutter_plugin_android_lifecycle: ^2.0.35
+  path_provider: ^2.1.4

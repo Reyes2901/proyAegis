@@ -1,0 +1,46 @@
+ext {
+    kotlin_version = '2.3.0'
+}
+
+rootProject.buildDir = "../build"
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            // Habilita buildConfig (soluciona cloud_firestore y similares)
+            project.android.buildFeatures.buildConfig = true
+
+            project.android.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+
+            if (project.android.compileSdk == null || project.android.compileSdk < 30) {
+                project.android.compileSdk = 36
+            }
+
+            // Inyecta namespace si no existe (soluciona app_usage, battery_plus, etc.)
+            if (project.android.namespace == null) {
+                def manifestFile = project.file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    def xml = new XmlSlurper().parse(manifestFile)
+                    def pkg = xml.@package?.text()
+                    if (pkg != null && !pkg.isEmpty()) {
+                        project.android.namespace = pkg
+                    }
+                }
+            }
+        }
+        project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
