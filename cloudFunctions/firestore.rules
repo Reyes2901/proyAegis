@@ -1,0 +1,95 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function childDoc(parentUid, childId) {
+      return get(/databases/$(database)/documents/users/$(parentUid)/child/$(childId));
+    }
+
+    function isParent(parentUid) {
+      return request.auth != null && request.auth.uid == parentUid;
+    }
+
+    function isLinkedChild(parentUid, childId) {
+      return request.auth != null
+        && childDoc(parentUid, childId).data.linkedChildUid == request.auth.uid;
+    }
+
+    function isUnlinkedChild() {
+      return !('linkedChildUid' in resource.data)
+        || resource.data.linkedChildUid == null;
+    }
+
+    function isClaimingLink() {
+      return request.auth != null
+        && request.resource.data.linkedChildUid == request.auth.uid
+        && isUnlinkedChild();
+    }
+
+    match /users/{parentUid}/child/{childId} {
+      allow read: if isParent(parentUid)
+        || isLinkedChild(parentUid, childId)
+        || (request.auth != null && isUnlinkedChild());
+      allow create, update: if isParent(parentUid)
+        || isLinkedChild(parentUid, childId)
+        || isClaimingLink();
+      allow delete: if isParent(parentUid);
+
+      match /locationHistory/{docId} {
+        allow read: if isParent(parentUid);
+        allow create: if isLinkedChild(parentUid, childId);
+        allow update, delete: if false;
+      }
+
+      match /appUsageDaily/{dateId} {
+        allow read: if isParent(parentUid);
+        allow create, update: if isLinkedChild(parentUid, childId);
+        allow delete: if false;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isParent(parentUid) || isLinkedChild(parentUid, childId);
+        allow create: if isParent(parentUid);
+        allow update, delete: if isParent(parentUid);
+      }
+
+      match /blockedApps/{packageName} {
+        allow read: if isParent(parentUid) || isLinkedChild(parentUid, childId);
+        allow create, update: if isParent(parentUid);
+        allow delete: if isParent(parentUid);
+      }
+
+      match /timeRules/{packageName} {
+        allow read: if isParent(parentUid) || isLinkedChild(parentUid, childId);
+        allow create, update, delete: if isParent(parentUid);
+      }
+
+      match /screenRules/{ruleId} {
+        allow read: if isParent(parentUid) || isLinkedChild(parentUid, childId);
+        allow write: if isParent(parentUid);
+      }
+    }
+
+    match /users/{parentUid}/notifications/{notificationId} {
+      allow read, write: if isParent(parentUid);
+    }
+
+    match /childKeys/{key} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.parentUid;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.parentUid;
+    }
+
+    match /DeviceTokens/{tokenId} {
+      allow read, write: if request.auth != null && request.auth.uid == tokenId;
+      allow create: if request.auth != null
+        && request.auth.uid == tokenId
+        && request.resource.data.id == tokenId;
+    }
+
+    match /mail/{docId} {
+      allow create: if request.auth != null;
+    }
+  }
+}

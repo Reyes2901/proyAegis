@@ -13,13 +13,17 @@ import 'package:times_up_flutter/app/features/landing_page.dart';
 import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
 import 'package:times_up_flutter/models/child_model/child_model.dart';
 import 'package:times_up_flutter/models/notification_model/notification_model.dart';
+import 'package:times_up_flutter/services/app_blocker_service.dart';
+import 'package:times_up_flutter/services/app_usage_monitor_service.dart';
 import 'package:times_up_flutter/services/app_usage_service.dart';
 import 'package:times_up_flutter/services/database.dart';
+import 'package:times_up_flutter/app/helpers/location_permission_helper.dart';
 import 'package:times_up_flutter/services/geo_locator_service.dart';
+import 'package:times_up_flutter/services/notification_service.dart';
+import 'package:times_up_flutter/services/screen_rule_service.dart';
 import 'package:times_up_flutter/theme/theme.dart';
 import 'package:times_up_flutter/widgets/jh_display_text.dart';
 import 'package:times_up_flutter/widgets/jh_empty_content.dart';
-import 'package:times_up_flutter/widgets/show_logger.dart';
 
 class ChildPage extends StatefulWidget {
   const ChildPage({
@@ -57,6 +61,11 @@ class ChildPage extends StatefulWidget {
 }
 
 class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
+  Timer? _syncTimer;
+  Timer? _blockTimer;
+  Timer? _screenRuleTimer;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   void sendLocalToBloCNotification(BuildContext context) {
     context.read<ChildSideBloc>().add(GetNotifications());
     Navigator.pop(context);
@@ -71,20 +80,62 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    NotificationService.onOpenNotifications = _openNotificationsFromPush;
+    unawaited(widget.database?.ensureFcmTokenListener());
+    final child = widget.child;
+    final database = widget.database;
+    if (child != null && database != null) {
+      unawaited(AppBlockerService.instance.start(database, child.id));
+      unawaited(AppUsageMonitorService.instance.start(database, child.id));
+      unawaited(ScreenRuleService.instance.start(database, child.id));
+      _blockTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        unawaited(AppBlockerService.instance.checkAndBlockForeground());
+      });
+      _screenRuleTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        unawaited(ScreenRuleService.instance.checkRules());
+      });
+    }
+    // ponytail: foreground-only sync; background isolate sync deferred
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      unawaited(_pushLiveUpdate());
+    });
+  }
+
+  void _openNotificationsFromPush() {
+    if (!mounted) return;
+    context.read<ChildSideBloc>().add(GetNotifications());
+    _scaffoldKey.currentState?.openDrawer();
   }
 
   @override
   void dispose() {
+    if (NotificationService.onOpenNotifications == _openNotificationsFromPush) {
+      NotificationService.onOpenNotifications = null;
+    }
+    _syncTimer?.cancel();
+    _blockTimer?.cancel();
+    _screenRuleTimer?.cancel();
+    AppUsageMonitorService.instance.stop();
+    ScreenRuleService.instance.stop();
+    AppBlockerService.instance.stop();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  Future<void> _pushLiveUpdate() async {
+    final child = widget.child;
+    final database = widget.database;
+    if (child == null || database == null) return;
+    await database.liveUpdateChild(child, widget.appUsage);
+    await AppUsageMonitorService.instance.checkLimits();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    Timer.periodic(const Duration(seconds: 5), (timer) async {
-      await widget.database?.liveUpdateChild(widget.child!, widget.appUsage);
-      JHLogger.$.d('${timer.tick} - $state');
-    });
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_pushLiveUpdate());
+      unawaited(ScreenRuleService.instance.checkRules());
+    }
     super.didChangeAppLifecycleState(state);
   }
 
@@ -96,6 +147,7 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
       color: Colors.white,
       onRefresh: () => _refresh(widget.child, context, widget.database!),
       child: Scaffold(
+        key: _scaffoldKey,
         drawer: Drawer(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           child: Column(
@@ -111,8 +163,15 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
                       children: [
                         const SizedBox(height: 6),
                         CircleAvatar(
-                          backgroundImage: NetworkImage(widget.child!.image!),
                           radius: 45,
+                          backgroundImage: widget.child!.image != null &&
+                                  widget.child!.image!.isNotEmpty
+                              ? NetworkImage(widget.child!.image!)
+                              : null,
+                          child: widget.child!.image == null ||
+                                  widget.child!.image!.isEmpty
+                              ? const Icon(Icons.person, size: 45)
+                              : null,
                         ),
                         const SizedBox(height: 6),
                         JHDisplayText(
@@ -201,29 +260,21 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
           centerTitle: true,
         ),
         //ignore: non_null
-        body: widget.appUsage.info.isEmpty
-            ? const JHEmptyContent(
-                title: 'This is the child page',
-                message: 'Nothing to show at the moment',
-              )
-            : Center(
-                child: BlocConsumer<ChildSideBloc, ChildSideState>(
-                  listener: (context, state) {},
-                  builder: (context, state) {
-                    if (state is ChildSideInitial) {
-                      return _buildInitialInput(context);
-                    } else if (state is ChildSideFetching) {
-                      return _buildLoading();
-                    } else if (state is ChildSideNotification) {
-                      return _buildNotification(widget.child!);
-                    } else if (state is ChildSideAppList) {
-                      return _buildAppList(widget.appUsage);
-                    } else {
-                      return _buildInitialInput(context);
-                    }
-                  },
-                ),
-              ),
+        body: Center(
+          child: BlocConsumer<ChildSideBloc, ChildSideState>(
+            listener: (context, state) {},
+            builder: (context, state) {
+              if (state is ChildSideFetching) {
+                return _buildLoading();
+              } else if (state is ChildSideNotification) {
+                return _buildNotification(widget.child!);
+              } else if (state is ChildSideAppList) {
+                return _buildAppList(widget.appUsage);
+              }
+              return _buildInitialInput(context);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -296,23 +347,48 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
   }
 
   Widget _buildAppList(AppUsageService appUsage) {
+    if (appUsage.info.isEmpty) {
+      return ListView(
+        children: [
+          JHEmptyContent(
+            title: 'App usage',
+            fontSizeTitle: 23,
+            fontSizeMessage: 14,
+            message: appUsage.usagePermissionDenied
+                ? 'Grant usage access in Settings to see screen time.'
+                : 'No apps to show yet.',
+          ),
+          if (appUsage.usagePermissionDenied)
+            Center(
+              child: TextButton(
+                onPressed: () async {
+                  await appUsage.requestUsageAccess();
+                  if (mounted) setState(() {});
+                },
+                child: const Text('Open settings'),
+              ),
+            ),
+        ],
+      );
+    }
+
     return ListView.builder(
       itemCount: appUsage.info.length,
       itemBuilder: (context, index) {
+        final app = appUsage.info[index];
         return ListTile(
           horizontalTitleGap: 30,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-          leading: Image.memory(
-            appUsage.info[index].appIcon!,
-            height: 50,
-          ),
+          leading: app.appIcon != null
+              ? Image.memory(app.appIcon!, height: 50)
+              : const Icon(Icons.android, size: 50),
           title: JHDisplayText(
-            text: appUsage.info[index].appName,
+            text: app.appName,
             style: const TextStyle(fontSize: 15),
           ),
           trailing: JHDisplayText(
-            text: appUsage.info[index].usage.toString().t(),
+            text: app.usage.toString().t(),
             style: const TextStyle(fontSize: 14, color: Colors.indigo),
           ),
         );
@@ -327,7 +403,8 @@ class _ChildPageState extends State<ChildPage> with WidgetsBindingObserver {
   ) async {
     final geo = Provider.of<GeoLocatorService>(context, listen: false);
     final apps = Provider.of<AppUsageService>(context, listen: false);
-    final position = await geo.getInitialLocation();
+    final position = await requestLocationWithSettingsPrompt(context, geo);
+    if (position == null) return;
     final battery = await Battery().batteryLevel;
 
     await database.getUserCurrentChild(

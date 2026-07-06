@@ -8,28 +8,22 @@ const LocationSettings locationSettings = LocationSettings(
 );
 
 class GeoLocatorService {
-  late LocationPermission permission;
+  LocationPermission permission = LocationPermission.denied;
 
   Stream<Position> getCurrentLocation =
       Geolocator.getPositionStream(locationSettings: locationSettings);
 
-  Future<Position> getInitialLocation() async {
-    permission = await Geolocator.requestPermission();
-
+  Future<Position?> getInitialLocation() async {
+    permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      return Future.error('Location permissions are denied');
+      permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      // Permissions are denied forever, handle appropriately.
-      return Future.error(
-        'Location permissions are permanently denied, we cannot request'
-        ' permissions.',
-      );
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
     }
 
-    // When we reach here, permissions are granted and we can
-    // continue accessing the position of the device.
     return Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );

@@ -1,309 +1,130 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
-import 'package:times_up_flutter/models/child_model/child_model.dart';
 import 'package:times_up_flutter/theme/theme.dart';
+import 'package:times_up_flutter/widgets/jh_display_text.dart';
 
+/// Line chart fed by pre-built [spots] and X-axis [labels].
+/// Data source is chosen by the caller (e.g. [appsUsageModel] on child details).
 class JHLineChart extends StatelessWidget {
-  const JHLineChart({required this.model, Key? key}) : super(key: key);
-  final ChildModel model;
+  const JHLineChart({
+    required this.spots,
+    required this.labels,
+    this.emptyMessage,
+    Key? key,
+  }) : super(key: key);
+
+  final List<FlSpot> spots;
+  final List<String> labels;
+  final String? emptyMessage;
+
   @override
   Widget build(BuildContext context) {
+    if (spots.isEmpty) {
+      return Center(
+        child: JHDisplayText(
+          text: emptyMessage ?? 'No hay datos disponibles',
+          style: const TextStyle(color: Colors.grey, fontSize: 14),
+        ),
+      );
+    }
+
+    final maxY = _maxYFromSpots(spots);
+    final maxX = spots.length > 1 ? spots.length - 1.0 : 1.0;
+
     return LineChart(
-      sampleData2,
+      LineChartData(
+        lineTouchData: const LineTouchData(enabled: false),
+        gridData: const FlGridData(show: false),
+        titlesData: _titlesData(maxY),
+        borderData: _borderData,
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: true,
+            color: CustomColors.greenPrimary,
+            barWidth: 4,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: CustomColors.indigoDark.withOpacity(0.15),
+            ),
+            spots: spots,
+          ),
+        ],
+        minX: 0,
+        maxX: maxX,
+        maxY: maxY * 1.2,
+        minY: 0,
+      ),
       duration: const Duration(milliseconds: 250),
     );
   }
 
-  LineChartData get sampleData2 => LineChartData(
-        lineTouchData: lineTouchData2,
-        gridData: gridData,
-        titlesData: titlesData2,
-        borderData: borderData,
-        lineBarsData: lineBarsData2,
-        minX: 0,
-        maxX: 14,
-        maxY: 6,
-        minY: 0,
-      );
-
-  FlTitlesData get titlesData1 => FlTitlesData(
-        bottomTitles: AxisTitles(
-          sideTitles: bottomTitles,
+  FlTitlesData _titlesData(double maxY) {
+    return FlTitlesData(
+      bottomTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 32,
+          interval: 1,
+          getTitlesWidget: (value, meta) {
+            final index = value.toInt();
+            if (index < 0 || index >= labels.length) {
+              return const SizedBox.shrink();
+            }
+            return SideTitleWidget(
+              axisSide: meta.axisSide,
+              space: 8,
+              child: Text(
+                labels[index],
+                style: _axisStyle,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          },
         ),
-        rightTitles: AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
+      ),
+      leftTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          interval: maxY > 5 ? (maxY / 4).ceilToDouble() : 1,
+          reservedSize: 40,
+          getTitlesWidget: (value, meta) {
+            if (value <= 0) return const SizedBox.shrink();
+            return Text(
+              '${value.toInt()}m',
+              style: _axisStyle,
+              textAlign: TextAlign.center,
+            );
+          },
         ),
-        topTitles: AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
-        ),
-        leftTitles: AxisTitles(
-          sideTitles: leftTitles(),
-        ),
-      );
-
-  LineTouchData get lineTouchData2 => LineTouchData(
-        enabled: false,
-      );
-
-  FlTitlesData get titlesData2 => FlTitlesData(
-        bottomTitles: AxisTitles(
-          sideTitles: bottomTitles,
-        ),
-        rightTitles: AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
-        ),
-        topTitles: AxisTitles(
-          sideTitles: SideTitles(showTitles: false),
-        ),
-        leftTitles: AxisTitles(
-          sideTitles: leftTitles(),
-        ),
-      );
-
-  List<LineChartBarData> get lineBarsData2 => [
-        lineChartBarData2_1,
-        lineChartBarData2_2,
-        lineChartBarData2_3,
-      ];
-
-  Widget leftTitleWidgets(double value, TitleMeta meta) {
-    const style = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 14,
-    );
-    String text;
-    switch (value.toInt()) {
-      case 1:
-        text = '1m';
-        break;
-      case 2:
-        text = '2m';
-        break;
-      case 3:
-        text = '3m';
-        break;
-      case 4:
-        text = '5m';
-        break;
-      case 5:
-        text = '6m';
-        break;
-      default:
-        return Container();
-    }
-
-    return Text(text, style: style, textAlign: TextAlign.center);
-  }
-
-  SideTitles leftTitles() => SideTitles(
-        getTitlesWidget: leftTitleWidgets,
-        showTitles: true,
-        interval: 1,
-        reservedSize: 40,
-      );
-
-  Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    Widget text;
-
-    if (model.appsUsageModel.isEmpty) {
-      text = const Text('0');
-    }
-    switch (value.toInt()) {
-      case 2:
-        if (model.appsUsageModel.isEmpty) {
-          text = const Text('0');
-        } else {
-          text = Image.memory(
-            model.appsUsageModel[getRandom(model.appsUsageModel.length - 1)]
-                .appIcon!,
-            height: 25,
-          );
-        }
-        break;
-      case 4:
-        if (model.appsUsageModel.isEmpty) {
-          text = const Text('0');
-        } else {
-          text = Image.memory(
-            model.appsUsageModel[getRandom(model.appsUsageModel.length - 1)]
-                .appIcon!,
-            height: 25,
-          );
-        }
-        break;
-      case 6:
-        if (model.appsUsageModel.isEmpty) {
-          text = const Text('0');
-        } else {
-          text = Image.memory(
-            model.appsUsageModel[getRandom(model.appsUsageModel.length - 1)]
-                .appIcon!,
-            height: 25,
-          );
-        }
-        break;
-      case 8:
-        if (model.appsUsageModel.isEmpty) {
-          text = const Text('0');
-        } else {
-          text = Image.memory(
-            model.appsUsageModel[getRandom(model.appsUsageModel.length - 1)]
-                .appIcon!,
-            height: 25,
-          );
-        }
-        break;
-      case 10:
-        if (model.appsUsageModel.isEmpty) {
-          text = const Text('0');
-        } else {
-          text = Image.memory(
-            model.appsUsageModel[getRandom(model.appsUsageModel.length - 1)]
-                .appIcon!,
-            height: 25,
-          );
-        }
-        break;
-      default:
-        text = const Text('');
-        break;
-    }
-
-    return SideTitleWidget(
-      axisSide: meta.axisSide,
-      space: 10,
-      child: text,
+      ),
+      rightTitles: const AxisTitles(
+        sideTitles: SideTitles(showTitles: false),
+      ),
+      topTitles: const AxisTitles(
+        sideTitles: SideTitles(showTitles: false),
+      ),
     );
   }
 
-  SideTitles get bottomTitles => SideTitles(
-        showTitles: true,
-        reservedSize: 32,
-        interval: 1,
-        getTitlesWidget: bottomTitleWidgets,
-      );
+  static double _maxYFromSpots(List<FlSpot> spots) {
+    final max = spots.map((s) => s.y).fold<double>(0, (p, v) => v > p ? v : p);
+    return max > 0 ? max : 1;
+  }
 
-  FlGridData get gridData => FlGridData(show: false);
+  static const _axisStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12);
 
-  FlBorderData get borderData => FlBorderData(
+  FlBorderData get _borderData => FlBorderData(
         show: true,
         border: Border(
           bottom: BorderSide(
-              color: CustomColors.indigoDark.withOpacity(0.2), width: 4,),
+            color: CustomColors.indigoDark.withOpacity(0.2),
+            width: 4,
+          ),
           left: const BorderSide(color: Colors.transparent),
           right: const BorderSide(color: Colors.transparent),
           top: const BorderSide(color: Colors.transparent),
         ),
-      );
-
-  LineChartBarData get lineChartBarData1_1 => LineChartBarData(
-        isCurved: true,
-        color: CustomColors.indigoDark,
-        barWidth: 8,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: false),
-        belowBarData: BarAreaData(show: false),
-        spots: const [
-          FlSpot(1, 1),
-          FlSpot(3, 1.5),
-          FlSpot(5, 1.4),
-          FlSpot(7, 3.4),
-          FlSpot(10, 2),
-          FlSpot(12, 2.2),
-          FlSpot(13, 1.8),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData1_2 => LineChartBarData(
-        isCurved: true,
-        color: CustomColors.indigoDark,
-        barWidth: 8,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: false,
-          color: CustomColors.indigoDark.withOpacity(0),
-        ),
-        spots: const [
-          FlSpot(1, 1),
-          FlSpot(3, 2.8),
-          FlSpot(7, 1.2),
-          FlSpot(10, 2.8),
-          FlSpot(12, 2.6),
-          FlSpot(13, 3.9),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData1_3 => LineChartBarData(
-        isCurved: true,
-        color: CustomColors.greenPrimary,
-        barWidth: 8,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: false),
-        belowBarData: BarAreaData(show: false),
-        spots: const [
-          FlSpot(1, 2.8),
-          FlSpot(3, 1.9),
-          FlSpot(6, 3),
-          FlSpot(10, 1.3),
-          FlSpot(13, 2.5),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData2_1 => LineChartBarData(
-        isCurved: true,
-        curveSmoothness: 0,
-        color: CustomColors.greenPrimary.withOpacity(0.5),
-        barWidth: 4,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: false),
-        belowBarData: BarAreaData(show: false),
-        spots: const [
-          FlSpot(1, 1),
-          FlSpot(3, 4),
-          FlSpot(5, 1.8),
-          FlSpot(7, 5),
-          FlSpot(10, 2),
-          FlSpot(12, 2.2),
-          FlSpot(13, 1.8),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData2_2 => LineChartBarData(
-        isCurved: true,
-        color: CustomColors.indigoDark.withOpacity(0.5),
-        barWidth: 4,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: true,
-          color: CustomColors.indigoDark.withOpacity(0.2),
-        ),
-        spots: const [
-          FlSpot(1, 1),
-          FlSpot(3, 2.8),
-          FlSpot(7, 1.2),
-          FlSpot(10, 2.8),
-          FlSpot(12, 2.6),
-          FlSpot(13, 3.9),
-        ],
-      );
-
-  LineChartBarData get lineChartBarData2_3 => LineChartBarData(
-        isCurved: true,
-        curveSmoothness: 0,
-        color: CustomColors.indigoDark.withOpacity(0.5),
-        barWidth: 2,
-        isStrokeCapRound: true,
-        dotData: FlDotData(show: true),
-        belowBarData: BarAreaData(show: false),
-        spots: const [
-          FlSpot(1, 3.8),
-          FlSpot(3, 1.9),
-          FlSpot(6, 5),
-          FlSpot(10, 3.3),
-          FlSpot(13, 4.5),
-        ],
       );
 }

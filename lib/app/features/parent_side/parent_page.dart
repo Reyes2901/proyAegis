@@ -1,6 +1,5 @@
 // ignore_for_file: library_private_types_in_public_api
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
@@ -11,10 +10,10 @@ import 'package:times_up_flutter/app/features/parent_side/edit_child_page.dart';
 import 'package:times_up_flutter/app/features/parent_side/map_page.dart';
 import 'package:times_up_flutter/app/features/parent_side/notification_page.dart';
 import 'package:times_up_flutter/app/features/parent_side/setting_page.dart';
+import 'package:times_up_flutter/app/features/parent_side/usage_panel_page.dart';
 import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
 import 'package:times_up_flutter/l10n/l10n.dart';
 import 'package:times_up_flutter/models/child_model/child_model.dart';
-import 'package:times_up_flutter/services/api_path.dart';
 import 'package:times_up_flutter/services/app_usage_service.dart';
 import 'package:times_up_flutter/services/auth.dart';
 import 'package:times_up_flutter/services/database.dart';
@@ -33,7 +32,6 @@ import 'package:times_up_flutter/widgets/jh_shimmer_map.dart';
 import 'package:times_up_flutter/widgets/jh_summary_tile.dart';
 import 'package:times_up_flutter/widgets/show_logger.dart';
 
-typedef ValueList = List<Map<String, dynamic>>;
 
 class ParentPage extends StatefulWidget {
   const ParentPage({
@@ -72,7 +70,6 @@ class _ParentPageState extends State<ParentPage>
   Duration _averageUsage = const Duration(seconds: 1);
   late ScrollController _scrollController;
   late AnimationController _animationController;
-  late ValueList values = <Map<String, dynamic>>[];
   late bool _isShowCaseActivated;
 
   final GlobalKey _settingsKey = GlobalKey();
@@ -83,7 +80,6 @@ class _ParentPageState extends State<ParentPage>
   void initState() {
     super.initState();
     _getAverageUsage();
-    _getAllChildLocations();
     _setShowCaseView();
 
     _scrollController = ScrollController();
@@ -188,7 +184,6 @@ class _ParentPageState extends State<ParentPage>
         backgroundColor: Colors.indigo,
         onRefresh: () => Future.wait([
           _getAverageUsage(),
-          _getAllChildLocations(),
           _loadingTime(),
         ]),
         child: Scaffold(
@@ -231,6 +226,20 @@ class _ParentPageState extends State<ParentPage>
                         time: _averageUsage.toString().t(),
                         progressValue: calculatePercentage(_averageUsage),
                       ).vP4,
+                      StreamBuilder<List<ChildModel>>(
+                        stream: database.childrenStream(),
+                        builder: (context, snap) {
+                          final list = snap.data;
+                          if (list == null || list.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return TextButton(
+                            onPressed: () =>
+                                UsagePanelPage.show(context, list.first),
+                            child: const Text('Open usage panel'),
+                          );
+                        },
+                      ),
                       const HeaderWidget(
                         title: 'Information Section',
                         subtitle: 'Get tips on how to use the app.',
@@ -334,7 +343,6 @@ class _ParentPageState extends State<ParentPage>
                 position: position,
                 database: database,
                 auth: auth,
-                locations: values,
               )
             : const ShimmerMap();
       },
@@ -354,19 +362,6 @@ class _ParentPageState extends State<ParentPage>
             .startShowCase([_settingsKey, _childListKey, _addKey]),
       );
     }
-  }
-
-  Future<void> _getAllChildLocations() async {
-    await FirebaseFirestore.instance
-        .collection(APIPath.children(widget.auth.currentUser!.uid))
-        .get()
-        .then((document) {
-      if (document.docs.isNotEmpty) {
-        for (final element in document.docs) {
-          values.add(element.data());
-        }
-      }
-    });
   }
 
   void _setIndex(int value) {

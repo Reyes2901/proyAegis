@@ -10,10 +10,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:times_up_flutter/app/features/parent_side/app_list_page.dart';
+import 'package:times_up_flutter/app/features/parent_side/location_history_page.dart';
+import 'package:times_up_flutter/app/features/parent_side/screen_rules_page.dart';
+import 'package:times_up_flutter/app/features/parent_side/usage_panel_page.dart';
 import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
 import 'package:times_up_flutter/l10n/l10n.dart';
 import 'package:times_up_flutter/models/child_model/child_model.dart';
 import 'package:times_up_flutter/models/notification_model/notification_model.dart';
+import 'package:times_up_flutter/services/app_usage_local_service.dart';
 import 'package:times_up_flutter/services/database.dart';
 import 'package:times_up_flutter/theme/theme.dart';
 import 'package:times_up_flutter/widgets/jh_battery_widget.dart';
@@ -21,6 +25,7 @@ import 'package:times_up_flutter/widgets/jh_custom_button.dart';
 import 'package:times_up_flutter/widgets/jh_display_text.dart';
 import 'package:times_up_flutter/widgets/jh_empty_content.dart';
 import 'package:times_up_flutter/widgets/jh_header_widget.dart';
+import 'package:times_up_flutter/utils/usage_chart_data.dart';
 import 'package:times_up_flutter/widgets/jh_line_chart.dart';
 import 'package:times_up_flutter/widgets/show_alert_dialog.dart';
 import 'package:times_up_flutter/widgets/show_bottom_sheet.dart';
@@ -105,13 +110,23 @@ class _ChildDetailsPageState extends State<ChildDetailsPage>
     return StreamBuilder<ChildModel?>(
       stream: widget.database.childStream(childId: widget.childModel.id),
       builder: (context, snapshot) {
-        final child = snapshot.data;
-
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const Scaffold(
+            body: Center(child: Text('No se encontró el child')),
+          );
+        }
         return Scaffold(
-          body: _buildContentTemporary(
-            context,
-            child,
-          ),
+          body: _buildContentTemporary(context, snapshot.data),
         );
       },
     );
@@ -167,9 +182,14 @@ class _ChildDetailsPageState extends State<ChildDetailsPage>
                         ),
                       ),
                       child: ClipOval(
-                        child: model.image != null
-                            ? Image.network(model.image!)
-                            : const Icon(Icons.person),
+                        child: model.image != null && model.image!.isNotEmpty
+                            ? Image.network(
+                                model.image!,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                              )
+                            : const Icon(Icons.person, size: 40),
                       ).p4,
                     ),
                   ],
@@ -258,10 +278,39 @@ class _ChildDetailsPageState extends State<ChildDetailsPage>
                         margin: const EdgeInsets.symmetric(horizontal: 8),
                         height: 205,
                         width: double.infinity,
-                        child: JHLineChart(model: model),
+                        child: JHLineChart(
+                          spots: appsUsageToAppSpots(model.appsUsageModel),
+                          labels: appsUsageAppLabels(model.appsUsageModel),
+                          emptyMessage: 'No hay datos de uso para mostrar',
+                        ),
                       ),
                     ],
                   ).vTopP(20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: JHCustomButton(
+                          title: 'Location history',
+                          backgroundColor: CustomColors.indigoPrimary,
+                          onPress: () =>
+                              LocationHistoryPage.show(context, model),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: JHCustomButton(
+                          title: 'Usage panel',
+                          backgroundColor: CustomColors.indigoLight,
+                          onPress: () => UsagePanelPage.show(context, model),
+                        ),
+                      ),
+                    ],
+                  ).hP16,
+                  JHCustomButton(
+                    title: 'Screen time rules',
+                    backgroundColor: Colors.indigo,
+                    onPress: () => ScreenRulesPage.show(context, model),
+                  ).hP16,
                   _AppUsedList(model: model).vP16,
                   JHCustomButton(
                     title: 'Delete Child',
@@ -345,7 +394,6 @@ class _AppUsedList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeData = Theme.of(context);
     return Column(
       children: [
         if (model.appsUsageModel.isNotEmpty)
@@ -381,38 +429,9 @@ class _AppUsedList extends StatelessWidget {
             shrinkWrap: true,
             itemCount: model.appsUsageModel.length > 5
                 ? 5
-                : (model.appsUsageModel.length * 0.20).toInt(),
-            itemBuilder: (context, index) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: model.appsUsageModel[index].appIcon != null
-                        ? Image.memory(
-                            model.appsUsageModel[index].appIcon!,
-                            height: 35,
-                          )
-                        : const Icon(Icons.android),
-                    title: Text(
-                      model.appsUsageModel[index].appName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: themeData.dividerColor,
-                      ),
-                    ),
-                    trailing: Text(
-                      model.appsUsageModel[index].usage.toString().t(),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: themeData.dividerColor,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+                : model.appsUsageModel.length,
+            itemBuilder: (context, index) =>
+                _appTile(context, model.appsUsageModel[index]),
           )
         else
           const JHEmptyContent(
@@ -422,6 +441,31 @@ class _AppUsedList extends StatelessWidget {
             fontSizeTitle: 12,
           ),
       ],
+    );
+  }
+
+  Widget _appTile(BuildContext context, AppUsageInfo app) {
+    final themeData = Theme.of(context);
+    return ListTile(
+      leading: app.appIcon != null
+          ? Image.memory(app.appIcon!, height: 35)
+          : const Icon(Icons.android, size: 35),
+      title: Text(
+        app.appName,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: themeData.dividerColor,
+        ),
+      ),
+      trailing: Text(
+        app.usage.toString().t(),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: themeData.dividerColor,
+        ),
+      ),
     );
   }
 }

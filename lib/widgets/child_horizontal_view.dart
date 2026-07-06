@@ -26,7 +26,7 @@ class ChildListView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  if (imageLocation != null)
+                  if (imageLocation != null && imageLocation!.isNotEmpty)
                     Container(
                       height: 120,
                       decoration: BoxDecoration(

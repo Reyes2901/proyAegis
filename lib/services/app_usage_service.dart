@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
 import 'package:times_up_flutter/models/child_model/child_model.dart';
@@ -16,12 +17,18 @@ class AppUsageService implements AppService {
   List<AppUsageInfo> _info = <AppUsageInfo>[];
   final List<AppInfo> _appInfo = <AppInfo>[];
   Duration _averageDuration = const Duration(minutes: 1);
+  bool _usagePermissionDenied = false;
 
   List<AppUsageInfo> get info => _info;
 
   List<AppInfo> get appInfo => _appInfo;
 
   Duration get averageDuration => _averageDuration;
+
+  bool get usagePermissionDenied => _usagePermissionDenied;
+
+  /// ponytail: native plugin opens Usage Access settings when permission missing
+  Future<void> requestUsageAccess() async => getAppUsageService();
 
   @override
   Future<void> getAppUsageService() async {
@@ -31,8 +38,13 @@ class AppUsageService implements AppService {
       final infoList =
           await AppUsage.getAppUsage(startDate, endDate, useMock: false);
       _info = infoList;
+      _usagePermissionDenied = false;
     } on AppUsageException catch (exception) {
       JHLogger.$.e(exception);
+      _usagePermissionDenied = true;
+    } on PlatformException catch (exception) {
+      JHLogger.$.e(exception);
+      _usagePermissionDenied = true;
     }
   }
 

@@ -9,6 +9,7 @@ import 'package:times_up_flutter/app/helpers/parsing_extension.dart';
 import 'package:times_up_flutter/models/child_model/child_model.dart';
 import 'package:times_up_flutter/services/app_usage_service.dart';
 import 'package:times_up_flutter/services/database.dart';
+import 'package:times_up_flutter/app/helpers/location_permission_helper.dart';
 import 'package:times_up_flutter/services/geo_locator_service.dart';
 import 'package:times_up_flutter/widgets/jh_display_text.dart';
 import 'package:times_up_flutter/widgets/jh_form_submit_button.dart';
@@ -59,10 +60,15 @@ class _SetChildPageState extends State<SetChildPage> {
     final databaseStore = Provider.of<Database>(context, listen: false);
     final geo = Provider.of<GeoLocatorService>(context, listen: false);
     final appUsage = Provider.of<AppUsageService>(context, listen: false);
-    final position = await geo.getInitialLocation();
-    final battery = await Battery().batteryLevel;
 
     try {
+      final position = await requestLocationWithSettingsPrompt(context, geo);
+      if (position == null) {
+        setState(() => appState = AppState.complete);
+        return;
+      }
+      final battery = await Battery().batteryLevel;
+
       final response = await databaseStore.getUserCurrentChild(
         key,
         appUsage,
@@ -70,24 +76,6 @@ class _SetChildPageState extends State<SetChildPage> {
         battery: battery.toString(),
       );
 
-      // ✅ VERIFICAMOS SI EL CHILD EXISTE (response != null)
-      if (response == null) {
-        // Si no existe, mostramos alerta y no navegamos
-        if (mounted) {
-          await showAlertDialog(
-            context,
-            title: 'Child no encontrado',
-            content: 'No se encontró un child con esa clave. Verifica que el código sea correcto.',
-            defaultActionText: 'OK',
-          );
-        }
-        setState(() {
-          appState = AppState.complete;
-        });
-        return;
-      }
-
-      // Si existe, navegamos a ChildPage
       if (mounted) {
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute<ChildPage>(
@@ -98,9 +86,7 @@ class _SetChildPageState extends State<SetChildPage> {
         );
       }
     } catch (e) {
-      setState(() {
-        appState = AppState.complete;
-      });
+      setState(() => appState = AppState.complete);
       if (mounted) {
         await showAlertDialog(
           context,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import 'package:times_up_flutter/app/features/parent_side/map_page.dart';
 import 'package:times_up_flutter/services/auth.dart';
@@ -24,6 +25,7 @@ void main() {
     mockGeoLocatorService = MockGeoLocatorService();
     mockDatabase = MockDatabase();
     position = Dummy.position;
+    when(mockDatabase.childrenStream()).thenAnswer((_) => const Stream.empty());
   });
 
   testWidgets(
@@ -39,7 +41,6 @@ void main() {
               position: position,
               database: mockDatabase,
               auth: mockAuthBase,
-              locations: [],
             ),
           ),
         ),
@@ -65,7 +66,6 @@ void main() {
               position: position,
               database: mockDatabase,
               auth: mockAuthBase,
-              locations: [],
             ),
           ),
         ),

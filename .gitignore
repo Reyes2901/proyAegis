@@ -143,3 +143,12 @@ build/
 .fvm/flutter_sdk
 
 *.iml
+
+# Local/project documentation
+AGENTS.md
+PLAN.md
+informe.md
+planet.md
+
+# Firebase local configuration
+cloudFunctions/.firebaserc

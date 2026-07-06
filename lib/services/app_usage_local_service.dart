@@ -32,13 +32,26 @@ class AppUsageInfo {
     _appIcon = appIcon;
   }
 
-  factory AppUsageInfo.fromMap(Map<String, dynamic> data) => AppUsageInfo(
-        data['appName'] as String,
-        data['usage'].toString().p(),
-        data['startDate'],
-        data['endDate'],
-        appIcon: base64Decode(data['appIcon'] as String),
-      );
+  factory AppUsageInfo.fromMap(Map<String, dynamic> data) {
+    Uint8List? icon;
+    final raw = data['appIcon'];
+    if (raw != null && raw is String && raw.isNotEmpty) {
+      icon = base64Decode(raw);
+    }
+    return AppUsageInfo(
+      (data['packageName'] as String?) ?? data['appName'] as String,
+      _usageSecondsFromJson(data['usage']),
+      data['startDate'],
+      data['endDate'],
+      appIcon: icon,
+    );
+  }
+
+  /// ponytail: accepts legacy Duration strings from older Firestore docs
+  static double _usageSecondsFromJson(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    return raw.toString().p();
+  }
   late String _packageName;
   late String _appName;
   late Uint8List? _appIcon;
@@ -48,10 +61,11 @@ class AppUsageInfo {
 
   Map<String, dynamic> toMap() => {
         'appName': _appName,
-        'usage': _usage.toString(),
+        'packageName': _packageName,
+        'usage': _usage.inSeconds,
         'startDate': _startDate,
         'endDate': _endDate,
-        'appIcon': base64Encode(_appIcon!),
+        if (_appIcon != null) 'appIcon': base64Encode(_appIcon!),
       };
 
   String get appName => _appName;
@@ -95,7 +109,7 @@ class AppUsage {
       );
 
       final result = <AppUsageInfo>[];
-      final listApps = <AppUsageInfo>[];
+      final byPackage = <String, AppUsageInfo>{};
 
       for (final key in usage.keys) {
         final temp = List<double>.from(usage[key] as Iterable<dynamic>);
@@ -112,22 +126,25 @@ class AppUsage {
       }
 
       for (final app in appInfo) {
+        final pkg = app.packageName;
+        if (pkg == null) continue;
         for (final element in result) {
-          if (element.packageName.contains(app.packageName!)) {
-            listApps.add(
-              AppUsageInfo(
-                app.name!,
-                element.usage.inMilliseconds.toDouble(),
-                element.startDate,
-                element.endDate,
-                appIcon: app.icon,
-              ),
-            );
+          if (!element.packageName.contains(pkg)) continue;
+          final candidate = AppUsageInfo(
+            pkg,
+            element.usage.inSeconds.toDouble(),
+            element.startDate,
+            element.endDate,
+            appIcon: app.icon,
+          );
+          final existing = byPackage[pkg];
+          if (existing == null || candidate.usage > existing.usage) {
+            byPackage[pkg] = candidate;
           }
         }
       }
 
-      return listApps;
+      return byPackage.values.toList();
     }
     throw AppUsageException('AppUsage API exclusively available on Android!');
   }
