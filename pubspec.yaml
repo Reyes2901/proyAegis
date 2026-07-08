@@ -15,7 +15,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_svg: ^2.0.4
-  geocoding: ^3.0.0
+  geocoding: ^4.0.0
 
   # Authentication Packages:
   firebase_core: ^4.11.0
@@ -32,7 +32,7 @@ dependencies:
   shared_preferences: ^2.3.0
   installed_apps: ^2.1.1
   battery_plus: ^4.0.1
-  device_info_plus: ^8.2.2
+  device_info_plus: ^11.3.0
   firebase_storage: ^13.4.3
   bloc: ^8.0.3
   flutter_bloc: ^8.0.1
@@ -50,7 +50,7 @@ dependencies:
   intl: any
   uuid: ^4.5.3
   app_usage: ^2.0.0
-  google_fonts: ^4.0.3
+  google_fonts: ^8.1.0
   image_picker: ^1.1.0
 
   rename: ^2.1.1
@@ -62,17 +62,17 @@ dependencies:
   shimmer: ^2.0.0
 
   # Testing Packages:
-  mockito: ^5.0.0
+  mockito: ^5.6.4
 
   # Share Packages:
-  share_plus: ^9.0.0    # <-- CAMBIADO DE ^6.3.0 A ^9.0.0
+  share_plus: ^12.0.2    # <-- CAMBIADO DE ^6.3.0 A ^9.0.0
 
   # Code Formatting Packages:
   pedantic: ^1.9.2
 
   cupertino_icons: ^1.0.6
-  freezed_annotation: ^2.2.0
-  json_annotation: ^4.8.1
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
 
   #logger
   logger: ^1.4.0
@@ -80,11 +80,11 @@ dependencies:
 
 dev_dependencies:
   bloc_test: ^9.1.1
-  build_runner: ^2.3.3
+  build_runner: ^2.8.0
   flutter_test:
     sdk: flutter
-  freezed: ^2.4.2
-  json_serializable: ^6.6.2
+  freezed: ^3.2.3
+  json_serializable: ^6.11.2
   mocktail: ^1.0.0
   very_good_analysis: ^5.0.0
 
